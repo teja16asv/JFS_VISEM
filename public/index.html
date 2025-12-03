@@ -76,7 +76,7 @@
 
    
     <!-- Dropdown -->
-    <select id="nameSelect" onchange="showDetails()" style='height:40px; width:320px;'>
+    <select id="nameSelect" onchange="showNull()" style='height:40px; width:320px;'>
         <option value="">-- Select Name --</option>
 
         <!-- Earlier personalities -->
@@ -100,7 +100,7 @@
         <option value="AdaLovelace">Ada Lovelace (1st Programmer)</option>
         <option value="madhu">Madhu (JFS Trainer, CDC, IARE Hyderabad)</option>
     </select>
-
+    <button id="submit" onclick="showDetails()" style="height: 40px;">Show Details</button>
     <div class="container">
 
         <!-- LEFT BOX: PHOTO -->
@@ -118,10 +118,21 @@
 
     <script>
 
-      
+function showNull(){
+    let photo = document.getElementById("photo");
+    let info = document.getElementById("infoText");
+    photo.style.display = "none";
+    info.innerHTML = "Please select a person from the dropdown.";
+    return;
+}
 function showDetails() {
-    let name = document.getElementById("nameSelect").value;
+    let ask = confirm("Do you want to view the details?");
 
+    if (!ask) {
+        return;
+    } 
+    let name = document.getElementById("nameSelect").value;
+    
     let photo = document.getElementById("photo");
     let info = document.getElementById("infoText");
 
