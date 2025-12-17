@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Faculty Timetable</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        table {
+            width: 80%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        th {
+            background: lightblue;   /* SAME AS STUDENT VIEW */
+        }
+        .batch-title {
+            font-weight: bold;
+            font-size: 20px;
+            margin-top: 30px;
+        }
+        input, select {
+            padding: 6px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Faculty Timetable</h2>
+
+<input type="file" id="csvFile" accept=".csv">
+
+<br><br>
+
+<input type="text" id="facultySearch" placeholder="Search faculty...">
+<select id="facultySelect">
+    <option value="">Select Faculty</option>
+</select>
+
+<div id="tables"></div>
+
+<script>
+let facultyTT = {};
+
+document.getElementById("csvFile").addEventListener("change", function () {
+    Papa.parse(this.files[0], {
+        header: true,
+        skipEmptyLines: true,
+        complete: function (result) {
+            facultyTT = buildFacultyData(result.data);
+            populateFacultyDropdown(facultyTT);
+        }
+    });
+});
+
+function buildFacultyData(data) {
+    const tt = {};
+
+    data.forEach(row => {
+        const faculty = row["FACULTY"];
+        const day = row["DAY"];
+        const session = row["SESSION"];
+        const batch = row["BATCH"];
+        const course = row["COURSE"];
+        const room = row["ROOM"];
+
+        if (!faculty || !day || !session) return;
+
+        tt[faculty] ??= {};
+        tt[faculty][day] ??= { FN: "", AN: "" };
+
+        tt[faculty][day][session] =
+            `${batch}<br>${course}<br>Room: ${room}`;
+    });
+
+    return tt;
+}
+
+function populateFacultyDropdown(tt) {
+    const select = document.getElementById("facultySelect");
+    select.innerHTML = `<option value="">Select Faculty</option>`;
+
+    Object.keys(tt).sort().forEach(faculty => {
+        const opt = document.createElement("option");
+        opt.value = faculty;
+        opt.textContent = faculty;
+        select.appendChild(opt);
+    });
+}
+
+document.getElementById("facultySearch").addEventListener("input", function () {
+    const query = this.value.toLowerCase();
+    const select = document.getElementById("facultySelect");
+
+    [...select.options].forEach(opt => {
+        if (!opt.value) return;
+        opt.style.display = opt.value.toLowerCase().includes(query) ? "" : "none";
+    });
+});
+
+document.getElementById("facultySelect").addEventListener("change", function () {
+    if (this.value) buildFacultyTable(this.value);
+});
+
+function buildFacultyTable(faculty) {
+    const container = document.getElementById("tables");
+    container.innerHTML = "";
+
+    const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const data = facultyTT[faculty];
+
+    const title = document.createElement("div");
+    title.className = "batch-title";
+    title.innerHTML = `Faculty: ${faculty}`;
+
+    const table = document.createElement("table");
+
+    let html = `
+        <tr>
+            <th>DAY</th>
+            <th>FN</th>
+            <th>LUNCH</th>
+            <th>AN</th>
+        </tr>
+    `;
+
+    days.forEach((day, i) => {
+        html += `<tr>
+            <td>${day}</td>
+            <td>${data[day]?.FN || ""}</td>`;
+
+        if (i === 0) {
+            html += `<td rowspan="6">L<br>U<br>N<br>C<br>H</td>`;
+        }
+
+        html += `<td>${data[day]?.AN || ""}</td></tr>`;
+    });
+
+    table.innerHTML = html;
+
+    container.appendChild(title);
+    container.appendChild(table);
+}
+</script>
+
+</body>
+</html>
