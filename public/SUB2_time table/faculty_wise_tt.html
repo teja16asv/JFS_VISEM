@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Faculty Timetable</title>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <style>
@@ -14,201 +15,133 @@
             border: 1px solid black;
             padding: 8px;
             text-align: center;
-            vertical-align: middle;
         }
         th {
             background: lightblue;
         }
-        .batch-title {
+        .faculty-title {
             font-weight: bold;
             font-size: 20px;
             margin-top: 30px;
         }
-        input, select {
-            padding: 6px;
-            margin: 5px;
-        }
-        .current-class {
+        .highlight-batch {
             background-color: yellow;
             font-weight: bold;
         }
     </style>
 </head>
+
 <body>
 
-<h2>Faculty Timetable</h2>
-
+<h2>Upload CSV File</h2>
 <input type="file" id="csvFile" accept=".csv">
 
 <br><br>
 
-<input type="text" id="facultySearch" placeholder="Search faculty...">
+<label><b>Select Faculty:</b></label>
 <select id="facultySelect">
-    <option value="">Select Faculty</option>
     <option value="ALL">ALL</option>
 </select>
 
 <div id="tables"></div>
 
 <script>
-let facultyTT = {};
-
+let csvData = [];
+const HIGHLIGHT_BATCH = "VI-SU-B2";
 
 document.getElementById("csvFile").addEventListener("change", function () {
     Papa.parse(this.files[0], {
         header: true,
         skipEmptyLines: true,
         complete: function (result) {
-            facultyTT = buildFacultyData(result.data);
-            populateFacultyDropdown(facultyTT);
+            csvData = result.data;
+            populateFacultyDropdown(csvData);
+            buildFacultyTables("ALL");
         }
     });
 });
 
-// ---------- BUILD DATA ----------
-function buildFacultyData(data) {
-    const tt = {};
+document.getElementById("facultySelect").addEventListener("change", function () {
+    buildFacultyTables(this.value);
+});
 
-    data.forEach(row => {
-        const faculty = row["FACULTY"];
-        const day = row["DAY"];
-        const session = row["SESSION"];
-        const batch = row["BATCH"];
-        const course = row["COURSE"];
-        const room = row["ROOM"];
-
-        if (!faculty || !day || !session) return;
-
-        tt[faculty] ??= {};
-        tt[faculty][day] ??= { FN: "", AN: "" };
-
-        tt[faculty][day][session] =
-            `${batch}<br>${course}<br>Room: ${room}`;
-    });
-
-    return tt;
-}
-
-// ---------- DROPDOWN ----------
-function populateFacultyDropdown(tt) {
+function populateFacultyDropdown(data) {
     const select = document.getElementById("facultySelect");
-    select.innerHTML = `
-        <option value="">Select Faculty</option>
-        <option value="ALL">ALL</option>
-    `;
+    select.innerHTML = `<option value="ALL">ALL</option>`;
 
-    Object.keys(tt).sort().forEach(faculty => {
+    const faculties = [...new Set(data.map(r => r["FACULTY"]).filter(Boolean))];
+
+    faculties.forEach(f => {
         const opt = document.createElement("option");
-        opt.value = faculty;
-        opt.textContent = faculty;
+        opt.value = f;
+        opt.textContent = f;
         select.appendChild(opt);
     });
 }
 
-// ---------- SEARCH ----------
-document.getElementById("facultySearch").addEventListener("input", function () {
-    const query = this.value.toLowerCase();
-    const select = document.getElementById("facultySelect");
-
-    [...select.options].forEach(opt => {
-        if (!opt.value || opt.value === "ALL") return;
-        opt.style.display = opt.value.toLowerCase().includes(query) ? "" : "none";
-    });
-});
-
-// ---------- SELECT ----------
-document.getElementById("facultySelect").addEventListener("change", function () {
-    if (!this.value) return;
-
-    if (this.value === "ALL") {
-        buildAllFacultyTables();
-    } else {
-        buildFacultyTable(this.value);
-    }
-});
-
-// ---------- TIME HELPERS ----------
-function getCurrentSession() {
-    const hour = new Date().getHours();
-    if (hour >= 9 && hour < 13) return "FN";
-    if (hour >= 14 && hour < 17) return "AN";
-    return null;
-}
-
-function getToday() {
-    const days = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-    return days[new Date().getDay()];
-}
-
-// ---------- SINGLE FACULTY ----------
-function buildFacultyTable(faculty) {
-    const container = document.getElementById("tables");
-    container.innerHTML = "";
-    container.appendChild(createFacultyBlock(faculty));
-}
-
-// ---------- ALL FACULTY ----------
-function buildAllFacultyTables() {
+function buildFacultyTables(selectedFaculty) {
     const container = document.getElementById("tables");
     container.innerHTML = "";
 
-    Object.keys(facultyTT).sort().forEach(faculty => {
-        container.appendChild(createFacultyBlock(faculty));
-    });
-}
-
-// ---------- COMMON BLOCK ----------
-function createFacultyBlock(faculty) {
     const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"];
-    const data = facultyTT[faculty];
+    const facultyMap = {};
 
-    const today = getToday();
-    const currentSession = getCurrentSession();
+    csvData.forEach(row => {
+        const faculty = row["FACULTY"];
+        const batch = row["BATCH"];
+        const day = row["DAY"];
+        const session = row["SESSION"];
+        const course = row["COURSE"];
+        const room = row["ROOM"];
 
-    const wrapper = document.createElement("div");
+        if (!faculty || !day || !session) return;
+        if (selectedFaculty !== "ALL" && faculty !== selectedFaculty) return;
 
-    const title = document.createElement("div");
-    title.className = "batch-title";
-    title.innerHTML = `Faculty: ${faculty}`;
+        if (!facultyMap[faculty]) facultyMap[faculty] = {};
+        if (!facultyMap[faculty][day]) facultyMap[faculty][day] = { FN: "", AN: "" };
 
-    const table = document.createElement("table");
-
-    let html = `
-        <tr>
-            <th>DAY</th>
-            <th>FN</th>
-            <th>LUNCH</th>
-            <th>AN</th>
-        </tr>
-    `;
-
-    days.forEach((day, i) => {
-        const fn = data[day]?.FN || "";
-        const an = data[day]?.AN || "";
-
-        const fnClass =
-            day === today && currentSession === "FN" && fn ? "current-class" : "";
-
-        const anClass =
-            day === today && currentSession === "AN" && an ? "current-class" : "";
-
-        html += `<tr>
-            <td>${day}</td>
-            <td class="${fnClass}">${fn}</td>`;
-
-        if (i === 0) {
-            html += `<td rowspan="6">L<br>U<br>N<br>C<br>H</td>`;
-        }
-
-        html += `<td class="${anClass}">${an}</td></tr>`;
+        facultyMap[faculty][day][session] =
+            `${batch}<br>${course}<br>Room: ${room}`;
     });
 
-    table.innerHTML = html;
+    for (const faculty in facultyMap) {
+        const title = document.createElement("div");
+        title.className = "faculty-title";
+        title.innerHTML = `Faculty: ${faculty}`;
+        container.appendChild(title);
 
-    wrapper.appendChild(title);
-    wrapper.appendChild(table);
+        const table = document.createElement("table");
 
-    return wrapper;
+        let html = `
+            <tr>
+                <th>DAY</th>
+                <th>FN</th>
+                <th rowspan="7">L<br>U<br>N<br>C<br>H</th>
+                <th>AN</th>
+            </tr>
+        `;
+
+        days.forEach(day => {
+            const fn = facultyMap[faculty][day]?.FN || "";
+            const an = facultyMap[faculty][day]?.AN || "";
+
+            const target = HIGHLIGHT_BATCH.toLowerCase();
+
+            const fnClass = fn.toLowerCase().includes(target) ? "highlight-batch" : "";
+            const anClass = an.toLowerCase().includes(target) ? "highlight-batch" : "";
+
+            html += `
+                <tr>
+                    <td>${day}</td>
+                    <td class="${fnClass}">${fn}</td>
+                    <td class="${anClass}">${an}</td>
+                </tr>
+            `;
+        });
+
+        table.innerHTML = html;
+        container.appendChild(table);
+    }
 }
 </script>
 
